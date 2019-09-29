@@ -107,6 +107,8 @@ class Downloader:
         zipdir(self.outdir, zipf)
         zipf.close()
 
+    def human_name(self, outdir, title):
+        os.rename(self.outdir + ".epub", outdir + "/" + title + ".epub")
 
 class BookDownloader:
     def __init__(self, bookid, downloader, secret=None):
@@ -186,6 +188,14 @@ class BookDownloader:
             response = self.downloader.request_url(url)
             self.downloader.save_bytes(response.content, "OEBPS/"+fname)
 
+    def extract_title(self):
+        namespace = {
+            'ncx': "http://www.daisy.org/z3986/2005/ncx/"
+        }
+        root = ET.parse(self.downloader.path("OEBPS/toc.ncx"))
+        return root.find('./ncx:docTitle/ncx:text', namespace).text
+
+
     def delete_downloaded(self):
         self.downloader.delete_downloaded()
 
@@ -194,6 +204,9 @@ class BookDownloader:
 
     def delete_css(self):
         self.downloader.delete_css()
+
+    def human_name(self, outdir):
+        self.downloader.human_name(outdir, self.extract_title())
 
 
 class Bookmate:
@@ -219,6 +232,8 @@ if __name__ == "__main__":
     parser.add_argument("--make_epub", type=bool, default=True)
     parser.add_argument("--delete_css", type=bool, default=True)
     parser.add_argument("--cookies", help="Path to the Google Chrome cookies database")
+    parser.add_argument("--human-name", help="Save book with original title", type=bool, default=True)
+
     arg = parser.parse_args()
 
     logformat = '%(asctime)s (%(name)s) %(levelname)s %(module)s.%(funcName)s():%(lineno)d  %(message)s'  # noqa: E501
@@ -242,8 +257,11 @@ if __name__ == "__main__":
         book.delete_css()
     if arg.make_epub:
         book.make_epub()
+    if arg.human_name:
+        book.human_name(arg.outdir)
     if arg.delete_downloaded:
         book.delete_downloaded()
+
     # url = bookid if arg.bookid.startswith("http") else "https://reader.bookmate.com/%s" % arg.bookid  # noqa: E501
     # downloader = BookDownloader(url, "out")
     # downloader.download_book()
