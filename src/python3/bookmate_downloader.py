@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+# todo fix imports
+# is craphack https://stackoverflow.com/questions/19623267/importerror-no-module-named-crypto-cipher/21116128#21116128
+import crypto
+import sys
+sys.modules['Crypto'] = crypto
+
 import os
 import argparse
 from xml.etree import ElementTree as ET
@@ -10,6 +16,7 @@ import zipfile
 from Crypto.Cipher import AES
 import logging
 from pycookiecheat import chrome_cookies
+from sqlite3 import OperationalError
 import requests
 from html.parser import HTMLParser
 
@@ -211,15 +218,24 @@ if __name__ == "__main__":
     parser.add_argument("--delete_downloaded", type=bool, default=True)
     parser.add_argument("--make_epub", type=bool, default=True)
     parser.add_argument("--delete_css", type=bool, default=True)
+    parser.add_argument("--cookies", help="Path to the Google Chrome cookies database")
     arg = parser.parse_args()
+
     logformat = '%(asctime)s (%(name)s) %(levelname)s %(module)s.%(funcName)s():%(lineno)d  %(message)s'  # noqa: E501
     logging.basicConfig(level=arg.log, format=logformat)
+
     if not os.path.exists(arg.outdir):
         logging.info("Creating folder %s ..." % arg.outdir)
         os.makedirs(arg.outdir)
-    cookies = chrome_cookies("https://reader.bookmate.com")
+
+    try:
+        cookies = chrome_cookies("https://reader.bookmate.com", arg.cookies)
+    except OperationalError:
+        sys.exit("Can't open default cookies database.\nTry use argument --cookie with path to cookies database")
+
     bookmate = Bookmate(outdir=arg.outdir, cookies=cookies)
     book = bookmate.get_book(bookid=arg.bookid)
+
     if arg.download:
         book.download()
     if arg.delete_css:

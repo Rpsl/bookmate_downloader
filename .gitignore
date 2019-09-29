@@ -103,3 +103,6 @@ src/python3/out/
 
 # mypy
 .mypy_cache/
+
+# IDE's
+.idea/
