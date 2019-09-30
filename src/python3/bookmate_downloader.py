@@ -1,4 +1,16 @@
 #!/usr/bin/env python
+
+# todo fix imports
+# is craphack https://stackoverflow.com/questions/19623267/importerror-no-module-named-crypto-cipher/21116128#21116128
+import sys
+
+try:
+    import crypto
+
+    sys.modules['Crypto'] = crypto
+except ImportError:
+    pass
+
 import os
 import argparse
 import subprocess
@@ -54,9 +66,9 @@ class ScriptParser(HTMLParser):
         S = "window.CLIENT_PARAMS"
         if S not in script_data:
             return
-        after = script_data[script_data.find(S)+len(S):]
+        after = script_data[script_data.find(S) + len(S):]
         logging.debug("after: %s", after)
-        json_text = after[after.find("=")+1:after.find(";")]
+        json_text = after[after.find("=") + 1:after.find(";")]
         self.client_params = json.loads(json_text.strip())
         logging.debug("client_params: %s", self.client_params)
 
@@ -120,11 +132,14 @@ class Downloader:
             return False
 
         try:
-            subprocess.check_call([ebook, os.path.abspath(file_path), os.path.abspath(tmp_file)], shell=False, stdout=subprocess.DEVNULL)
+            subprocess.check_call([ebook, os.path.abspath(file_path), os.path.abspath(tmp_file)], shell=False,
+                                  stdout=subprocess.DEVNULL)
             os.unlink(file_path)
             os.rename(tmp_file, file_path)
         except subprocess.CalledProcessError:
-            logging.error("Autofix finished with error. Try manualy call autofix: `which ebook-convert` input_file output_file")
+            logging.error(
+                "Autofix finished with error. Try manualy call autofix: `which ebook-convert` input_file output_file")
+
 
 class BookDownloader:
     def __init__(self, bookid, downloader, secret=None):
@@ -170,7 +185,7 @@ class BookDownloader:
         bts = self.rawDecryptBytes(data[16:], key, data[:16])
         logging.debug("len(bts):%s", len(bts))
         logging.debug("lastbyte:%s", bts[-1])
-        padsize = -1*bts[-1]
+        padsize = -1 * bts[-1]
         return bts[:padsize]
 
     def rawDecryptBytes(self, cryptArr, key, iv):
@@ -202,7 +217,7 @@ class BookDownloader:
             logging.debug("fname:%s", fname)
             url = "https://reader.bookmate.com/p/a/4/d/{uuid}/contents/OEBPS/{fname}".format(uuid=uuid, fname=fname)
             response = self.downloader.request_url(url)
-            self.downloader.save_bytes(response.content, "OEBPS/"+fname)
+            self.downloader.save_bytes(response.content, "OEBPS/" + fname)
 
     def extract_title(self):
         namespace = {
@@ -210,7 +225,6 @@ class BookDownloader:
         }
         root = ET.parse(self.downloader.path("OEBPS/toc.ncx"))
         return root.find('./ncx:docTitle/ncx:text', namespace).text
-
 
     def delete_downloaded(self):
         self.downloader.delete_downloaded()
@@ -245,14 +259,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--bookid", help="bookid, take from the book url", required=True)
     parser.add_argument("--outdir", help="Output directory", default="out")
-    parser.add_argument("--log", help="loglevel", type=lambda name: logging._nameToLevel[name], default="INFO", choices=logging._nameToLevel.values())
+    parser.add_argument("--log", help="loglevel", type=lambda name: logging._nameToLevel[name], default="INFO",
+                        choices=logging._nameToLevel.values())
     parser.add_argument("--download", type=bool, default=True)
     parser.add_argument("--delete_downloaded", type=bool, default=True)
     parser.add_argument("--make_epub", type=bool, default=True)
     parser.add_argument("--delete_css", type=bool, default=True)
     parser.add_argument("--cookies", help="Path to the Google Chrome cookies database")
-    parser.add_argument("--human-name", help="Save book with original title", type=bool, default=True)
-    parser.add_argument("--autofix", help="Try autofix epub", type=bool, default=False)
+    parser.add_argument("--human-name", help="Save book with original title", action='store_true')
+    parser.add_argument("--autofix", help="Try autofix epub", action='store_true')
 
     arg = parser.parse_args()
 
@@ -266,7 +281,7 @@ if __name__ == "__main__":
     try:
         cookies = chrome_cookies("https://reader.bookmate.com", arg.cookies)
     except OperationalError:
-        sys.exit("Can't open default cookies database.\nTry use argument --cookie with path to cookies database")
+        sys.exit("Can't open default cookies database.\nTry use argument --cookies with path to cookies database")
 
     bookmate = Bookmate(outdir=arg.outdir, cookies=cookies)
     book = bookmate.get_book(bookid=arg.bookid)
@@ -283,7 +298,7 @@ if __name__ == "__main__":
         file = book.human_name(arg.outdir)
     if arg.delete_downloaded:
         book.delete_downloaded()
-    if arg.autofix:
+    if arg.autofix and file is not None:
         book.autofix(arg.outdir, file)
 
     # url = bookid if arg.bookid.startswith("http") else "https://reader.bookmate.com/%s" % arg.bookid  # noqa: E501
