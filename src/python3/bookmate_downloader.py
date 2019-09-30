@@ -1,12 +1,8 @@
 #!/usr/bin/env python
-# todo fix imports
-# is craphack https://stackoverflow.com/questions/19623267/importerror-no-module-named-crypto-cipher/21116128#21116128
-import crypto
-import sys
-sys.modules['Crypto'] = crypto
-
 import os
 import argparse
+import subprocess
+import sys
 from xml.etree import ElementTree as ET
 import shutil
 import json
@@ -106,9 +102,29 @@ class Downloader:
         zipf = zipfile.ZipFile(epubfpath, 'w', zipfile.ZIP_DEFLATED)
         zipdir(self.outdir, zipf)
         zipf.close()
+        return epubfpath
 
     def human_name(self, outdir, title):
-        os.rename(self.outdir + ".epub", outdir + "/" + title + ".epub")
+        file_name = outdir + "/" + title + ".epub"
+        os.rename(self.outdir + ".epub", file_name)
+        return file_name
+
+    def autofix(self, outdir, file_path):
+        tmp_file = outdir + '/tmp.epub'
+
+        try:
+            ebook = subprocess.check_output(['which', 'ebook-convert'])
+            ebook = ebook.strip(b'\n')
+        except subprocess.CalledProcessError:
+            logging.error("ebook-convert not found in system. it's are part of Calibre application, try to install its")
+            return False
+
+        try:
+            subprocess.check_call([ebook, os.path.abspath(file_path), os.path.abspath(tmp_file)], shell=False, stdout=subprocess.DEVNULL)
+            os.unlink(file_path)
+            os.rename(tmp_file, file_path)
+        except subprocess.CalledProcessError:
+            logging.error("Autofix finished with error. Try manualy call autofix: `which ebook-convert` input_file output_file")
 
 class BookDownloader:
     def __init__(self, bookid, downloader, secret=None):
@@ -200,13 +216,16 @@ class BookDownloader:
         self.downloader.delete_downloaded()
 
     def make_epub(self):
-        self.downloader.make_epub()
+        return self.downloader.make_epub()
 
     def delete_css(self):
         self.downloader.delete_css()
 
     def human_name(self, outdir):
-        self.downloader.human_name(outdir, self.extract_title())
+        return self.downloader.human_name(outdir, self.extract_title())
+
+    def autofix(self, outdir, file_path):
+        return self.downloader.autofix(outdir, file_path)
 
 
 class Bookmate:
@@ -233,6 +252,7 @@ if __name__ == "__main__":
     parser.add_argument("--delete_css", type=bool, default=True)
     parser.add_argument("--cookies", help="Path to the Google Chrome cookies database")
     parser.add_argument("--human-name", help="Save book with original title", type=bool, default=True)
+    parser.add_argument("--autofix", help="Try autofix epub", type=bool, default=False)
 
     arg = parser.parse_args()
 
@@ -251,16 +271,20 @@ if __name__ == "__main__":
     bookmate = Bookmate(outdir=arg.outdir, cookies=cookies)
     book = bookmate.get_book(bookid=arg.bookid)
 
+    file = None
+
     if arg.download:
         book.download()
     if arg.delete_css:
         book.delete_css()
     if arg.make_epub:
-        book.make_epub()
+        file = book.make_epub()
     if arg.human_name:
-        book.human_name(arg.outdir)
+        file = book.human_name(arg.outdir)
     if arg.delete_downloaded:
         book.delete_downloaded()
+    if arg.autofix:
+        book.autofix(arg.outdir, file)
 
     # url = bookid if arg.bookid.startswith("http") else "https://reader.bookmate.com/%s" % arg.bookid  # noqa: E501
     # downloader = BookDownloader(url, "out")
