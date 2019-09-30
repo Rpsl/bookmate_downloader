@@ -74,12 +74,13 @@ class ScriptParser(HTMLParser):
 
 
 class Downloader:
-    def __init__(self, outdir, cookies):
+    def __init__(self, outdir, bookdir, cookies):
         self.outdir = outdir
+        self.bookdir = bookdir
         self.cookies = cookies
 
     def save_bytes(self, bts, name):
-        fpath = os.path.join(self.outdir, name)
+        fpath = os.path.join(self.bookdir, name)
         dirpath = os.path.dirname(fpath)
         if not os.path.exists(dirpath):
             os.makedirs(dirpath)
@@ -95,10 +96,10 @@ class Downloader:
         return response
 
     def path(self, sub):
-        return os.path.join(self.outdir, sub)
+        return os.path.join(self.bookdir, sub)
 
     def delete_downloaded(self):
-        shutil.rmtree(self.outdir)
+        shutil.rmtree(self.bookdir)
 
     def delete_css(self):
         for root, dirs, files in os.walk(".", topdown=False):
@@ -109,20 +110,21 @@ class Downloader:
                     f.close()
 
     def make_epub(self):
-        assert os.path.exists(self.outdir), self.outdir
-        epubfpath = self.outdir + ".epub"
+        assert os.path.exists(self.bookdir), self.bookdir
+        epubfpath = self.bookdir + ".epub"
         zipf = zipfile.ZipFile(epubfpath, 'w', zipfile.ZIP_DEFLATED)
-        zipdir(self.outdir, zipf)
+        zipdir(self.bookdir, zipf)
         zipf.close()
         return epubfpath
 
-    def human_name(self, outdir, title):
-        file_name = outdir + "/" + title + ".epub"
-        os.rename(self.outdir + ".epub", file_name)
-        return file_name
+    def human_name(self, title):
+        human_name = "{}/{}.epub".format(self.outdir,title)
+        os.rename("{}.epub".format(self.bookdir), human_name)
+        return human_name
 
-    def autofix(self, outdir, file_path):
-        tmp_file = outdir + '/tmp.epub'
+    def autofix(self):
+        book_file = "{}.epub".format(self.bookdir)
+        temp_file = "{}/temporary.epub".format(self.outdir)
 
         try:
             ebook = subprocess.check_output(['which', 'ebook-convert'])
@@ -132,10 +134,10 @@ class Downloader:
             return False
 
         try:
-            subprocess.check_call([ebook, os.path.abspath(file_path), os.path.abspath(tmp_file)], shell=False,
+            subprocess.check_call([ebook, os.path.abspath(book_file), os.path.abspath(temp_file)], shell=False,
                                   stdout=subprocess.DEVNULL)
-            os.unlink(file_path)
-            os.rename(tmp_file, file_path)
+            os.unlink(book_file)
+            os.rename(temp_file, book_file)
         except subprocess.CalledProcessError:
             logging.error(
                 "Autofix finished with error. Try manualy call autofix: `which ebook-convert` input_file output_file")
@@ -219,7 +221,8 @@ class BookDownloader:
             response = self.downloader.request_url(url)
             self.downloader.save_bytes(response.content, "OEBPS/" + fname)
 
-    def extract_title(self):
+    @property
+    def title(self):
         namespace = {
             'ncx': "http://www.daisy.org/z3986/2005/ncx/"
         }
@@ -235,11 +238,11 @@ class BookDownloader:
     def delete_css(self):
         self.downloader.delete_css()
 
-    def human_name(self, outdir):
-        return self.downloader.human_name(outdir, self.extract_title())
+    def human_name(self):
+        return self.downloader.human_name(self.title)
 
-    def autofix(self, outdir, file_path):
-        return self.downloader.autofix(outdir, file_path)
+    def autofix(self):
+        return self.downloader.autofix()
 
 
 class Bookmate:
@@ -249,9 +252,15 @@ class Bookmate:
         assert cookies
         self.cookies = cookies
 
+    def get_bookidr(self, bookid):
+        return os.path.join(self.outdir, bookid)
+
     def get_book(self, bookid):
-        outdir = os.path.join(self.outdir, bookid)
-        downloader = Downloader(outdir=outdir, cookies=self.cookies)
+        downloader = Downloader(
+            outdir=self.outdir,
+            bookdir=self.get_bookidr(bookid),
+            cookies=self.cookies
+        )
         return BookDownloader(bookid=bookid, downloader=downloader)
 
 
@@ -286,20 +295,19 @@ if __name__ == "__main__":
     bookmate = Bookmate(outdir=arg.outdir, cookies=cookies)
     book = bookmate.get_book(bookid=arg.bookid)
 
-    file = None
-
     if arg.download:
         book.download()
     if arg.delete_css:
         book.delete_css()
     if arg.make_epub:
-        file = book.make_epub()
+        book.make_epub()
+    if arg.autofix:
+        book.autofix()
     if arg.human_name:
-        file = book.human_name(arg.outdir)
+        book.human_name()
     if arg.delete_downloaded:
         book.delete_downloaded()
-    if arg.autofix and file is not None:
-        book.autofix(arg.outdir, file)
+
 
     # url = bookid if arg.bookid.startswith("http") else "https://reader.bookmate.com/%s" % arg.bookid  # noqa: E501
     # downloader = BookDownloader(url, "out")
