@@ -1,6 +1,18 @@
 # Bookmate Downloader
+
 Download books as epub from bookmate.com and saves them as epub format files.
+
+## Installation
+
+```bash
+git clone https://github.com/Rpsl/bookmate_downloader
+cd bookmate_downloader
+pip install -r requirements.txt
+python main.py
+```
+
 # You needs to be subscribed to bookmate.com premium!!!
+
 I think it works on Mac OS X only at the moment.
 
 Steps:
